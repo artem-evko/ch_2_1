@@ -1,155 +1,112 @@
-package org.artem.evko;
 
 import java.io.*;
 import java.util.Arrays;
-import java.util.Locale;
-import java.util.Scanner;
 
-public class Main {
+public class AitkenEigenvalues {
 
-    public static void main(String[] args) {
+    private static final double EPS = 1e-6; // Точность вычислений
 
-        String inputFileName = "input.txt";
-        String outputFileName = "output.txt";
-
-        double[][] A = null;
-        int N = 0;
-        try (Scanner sc = new Scanner(new File(inputFileName))) {
-            sc.useLocale(Locale.US);
-            N = sc.nextInt();
-            A = new double[N][N];
-            for (int i = 0; i < N; i++) {
-                for (int j = 0; j < N; j++) {
-                    A[i][j] = sc.nextDouble();
-                }
-            }
-        } catch (FileNotFoundException e) {
-            System.err.println("Файл не найден: " + inputFileName);
-            return;
-        }
-
-        double[] x = new double[N];
-        Arrays.fill(x, 1.0);
-
-
-        double eps = 1e-12;
-        int maxIter = 1000;
-
-
-        double lambdaOld = 0.0;
-        double lambdaCurrent = 0.0;
-        double lambdaOlder = 0.0;
-
-
-        int iterCount = 0;
-        boolean converged = false;
-
-
-        double[] Ax = multiply(A, x);
-        double normAx = norm(Ax);
-        if (normAx < 1e-30) {
-            System.err.println("Начальный вектор дает нулевое преобразование A*x");
-            return;
-        }
-
-        for (int i = 0; i < N; i++) {
-            x[i] = Ax[i] / normAx;
-        }
-
-        Ax = multiply(A, x);
-        lambdaCurrent = dot(x, Ax);  // (x^T)(A x)
-
-
-        while (iterCount < maxIter) {
-            iterCount++;
-
-
-            lambdaOlder = lambdaOld;
-            lambdaOld = lambdaCurrent;
-
-
-            Ax = multiply(A, x);
-            normAx = norm(Ax);
-
-
-            if (normAx < 1e-30) {
-                System.err.println("Произошло вырождение на итерации: " + iterCount);
-                break;
-            }
-
-            for (int i = 0; i < N; i++) {
-                x[i] = Ax[i] / normAx;
-            }
-
-
-            Ax = multiply(A, x);
-            lambdaCurrent = dot(x, Ax);
-
-
-            if (Math.abs(lambdaCurrent - lambdaOld) < eps) {
-                converged = true;
-                break;
+    // Метод для чтения матрицы из файла
+    private static double[][] readMatrixFromFile(String filename) throws IOException {
+        BufferedReader reader = new BufferedReader(new FileReader(filename));
+        String line = reader.readLine();
+        int n = Integer.parseInt(line);
+        double[][] matrix = new double[n][n];
+        
+        for (int i = 0; i < n; i++) {
+            line = reader.readLine();
+            String[] values = line.split(" ");
+            for (int j = 0; j < n; j++) {
+                matrix[i][j] = Double.parseDouble(values[j]);
             }
         }
-
-
-        double lambdaPower = lambdaCurrent;
-
-
-        double lambdaAitken = lambdaPower;
-        if (iterCount >= 2) {
-            double d1 = (lambdaOld - lambdaOlder);
-            double d2 = (lambdaCurrent - 2.0*lambdaOld + lambdaOlder);
-            if (Math.abs(d2) > 1e-30) {
-
-                lambdaAitken = lambdaOlder - (d1 * d1)/d2;
-            }
-        }
-
-
-        try (PrintWriter out = new PrintWriter(new FileWriter(outputFileName))) {
-            out.println("Число итераций: " + iterCount + (converged ? " (успешно)" : " (достигнут предел итераций)"));
-            out.printf(Locale.US, "Приближение собств. значения (степенной метод): %.12f%n", lambdaPower);
-            out.printf(Locale.US, "Приближение собств. значения (Эйткен):          %.12f%n", lambdaAitken);
-            out.println("Нормированный собственный вектор (приближение):");
-            for (int i = 0; i < N; i++) {
-                out.printf(Locale.US, "%.12f ", x[i]);
-            }
-            out.println();
-        } catch (IOException e) {
-            System.err.println("Ошибка записи в файл: " + outputFileName);
-        }
+        reader.close();
+        return matrix;
     }
 
+    // Метод для записи результата в файл
+    private static void writeResultToFile(String filename, double eigenvalue, double[] eigenvector) throws IOException {
+        BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
+        writer.write("Собственное значение: " + eigenvalue + "\n");
+        writer.write("Собственный вектор:\n");
+        for (double value : eigenvector) {
+            writer.write(value + " ");
+        }
+        writer.close();
+    }
 
-    private static double[] multiply(double[][] A, double[] x) {
-        int N = x.length;
-        double[] result = new double[N];
-        for (int i = 0; i < N; i++) {
-            double sum = 0.0;
-            for (int j = 0; j < N; j++) {
-                sum += A[i][j] * x[j];
-            }
-            result[i] = sum;
+    // Вычисление скалярного произведения векторов
+    private static double dotProduct(double[] u, double[] v) {
+        double result = 0;
+        for (int i = 0; i < u.length; i++) {
+            result += u[i] * v[i];
         }
         return result;
     }
 
-
-    private static double dot(double[] a, double[] b) {
-        double sum = 0.0;
-        for (int i = 0; i < a.length; i++) {
-            sum += a[i] * b[i];
+    // Умножение матрицы на вектор
+    private static double[] matrixVectorMultiply(double[][] A, double[] x) {
+        int n = A.length;
+        double[] result = new double[n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                result[i] += A[i][j] * x[j];
+            }
         }
-        return sum;
+        return result;
     }
 
-
-    private static double norm(double[] v) {
-        double sum = 0.0;
-        for (double val : v) {
-            sum += val * val;
+    // Нормализация вектора
+    private static double[] normalize(double[] v) {
+        double norm = 0;
+        for (double value : v) {
+            norm += value * value;
         }
-        return Math.sqrt(sum);
+        norm = Math.sqrt(norm);
+        
+        double[] result = new double[v.length];
+        for (int i = 0; i < v.length; i++) {
+            result[i] = v[i] / norm;
+        }
+        return result;
     }
-}
+
+    // Процесс Эйткена для ускорения сходимости
+    private static double aitkenAcceleration(double x0, double x1, double x2) {
+        return x2 - ((x2 - x1) * (x2 - x1)) / (x2 - 2 * x1 + x0);
+    }
+
+    // Основной метод нахождения собственного значения
+    public static void findEigenvalue(String inputFile, String outputFile) throws IOException {
+        double[][] A = readMatrixFromFile(inputFile);
+        int n = A.length;
+        
+        // Начальное приближение
+        double[] x = new double[n];
+        for (int i = 0; i < n; i++) {
+            x[i] = 1;
+        }
+        
+        double lambdaOld = 0;
+        double lambdaNew = 0;
+        double[] xOld = new double[n];
+        double[] xNew = new double[n];
+        
+        // Итерационный процесс
+        while (true) {
+            // Сохраняем предыдущее приближение
+            System.arraycopy(x, 0, xOld, 0, n);
+            lambdaOld = lambdaNew;
+            
+            // Умножаем матрицу на вектор
+            xNew = matrixVectorMultiply(A, x);
+            
+            // Вычисляем приближение собственного значения
+            lambdaNew = dotProduct(x, xNew) / dotProduct(x, x);
+            
+            // Нормализуем вектор
+            x = normalize(xNew);
+            
+            // Проверяем сходимость
+            if (Math.abs(lambdaNew - lambdaOld) < EPS) {
+                break;
